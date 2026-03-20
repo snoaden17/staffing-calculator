@@ -1,0 +1,352 @@
+[
+    {
+      "storeName": "HAUS NOWHERE SEOUL",
+      "annualSales": 22000000000,
+      "dailyFootfall": 2982.008219,
+      "areaSqm": 925.62,
+      "areaPyeong": 280,
+      "fullTimeStaff": 20,
+      "partTimeStaff": 14,
+      "partTimeWeeklyHours": 23
+    },
+    {
+      "storeName": "HAUS NOWHERE DOSAN",
+      "annualSales": 15179579857,
+      "dailyFootfall": 1695.167123,
+      "areaSqm": 738.49,
+      "areaPyeong": 223.39,
+      "fullTimeStaff": 15,
+      "partTimeStaff": 16,
+      "partTimeWeeklyHours": 25.8125
+    },
+    {
+      "storeName": "SHINSA FS",
+      "annualSales": 9854381476,
+      "dailyFootfall": 559.1260274,
+      "areaSqm": 677.07,
+      "areaPyeong": 204.81,
+      "fullTimeStaff": 10,
+      "partTimeStaff": 10,
+      "partTimeWeeklyHours": 26.6
+    },
+    {
+      "storeName": "HONGDAE FS",
+      "annualSales": 9917633519,
+      "dailyFootfall": 503.2328767,
+      "areaSqm": 475.24,
+      "areaPyeong": 143.76,
+      "fullTimeStaff": 10,
+      "partTimeStaff": 9,
+      "partTimeWeeklyHours": 25.66666667
+    },
+    {
+      "storeName": "LOTTE WORLD TOWER MALL",
+      "annualSales": 9411155615,
+      "dailyFootfall": 3622.290411,
+      "areaSqm": 300.21,
+      "areaPyeong": 90.81,
+      "fullTimeStaff": 12,
+      "partTimeStaff": 11,
+      "partTimeWeeklyHours": 23.54545455
+    },
+    {
+      "storeName": "STARFIELD HANAM",
+      "annualSales": 4228271426,
+      "dailyFootfall": 1418.046575,
+      "areaSqm": 491.66,
+      "areaPyeong": 148.73,
+      "fullTimeStaff": 9,
+      "partTimeStaff": 7,
+      "partTimeWeeklyHours": 23
+    },
+    {
+      "storeName": "GALLERIA APGUJEONG",
+      "annualSales": 1760621516,
+      "dailyFootfall": 69.06849315,
+      "areaSqm": 39.2,
+      "areaPyeong": 11.86,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 2,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "GALLERIA GWANGKYO",
+      "annualSales": 1460600862,
+      "dailyFootfall": 117.1835616,
+      "areaSqm": 48.6,
+      "areaPyeong": 14.7,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 2,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "GALLERIA DAEJEON",
+      "annualSales": 1373169407,
+      "dailyFootfall": 113.309589,
+      "areaSqm": 29.7,
+      "areaPyeong": 8.98,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 3,
+      "partTimeWeeklyHours": 21
+    },
+    {
+      "storeName": "LOTTE MYEONGDONG",
+      "annualSales": 9589458892,
+      "dailyFootfall": 549.8493151,
+      "areaSqm": 49.2,
+      "areaPyeong": 14.88,
+      "fullTimeStaff": 8,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "LOTTE DONGTAN",
+      "annualSales": 1854916630,
+      "dailyFootfall": 138.1178082,
+      "areaSqm": 316.8,
+      "areaPyeong": 95.83,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "LOTTE JAMSIL",
+      "annualSales": 1320540362,
+      "dailyFootfall": 94.03561644,
+      "areaSqm": 53.53,
+      "areaPyeong": 16.19,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "LOTTE SEOMYEON",
+      "annualSales": 5139110499,
+      "dailyFootfall": 633.5205479,
+      "areaSqm": 112,
+      "areaPyeong": 33.88,
+      "fullTimeStaff": 6,
+      "partTimeStaff": 6,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "SSG MYEONGDONG",
+      "annualSales": 5146804530,
+      "dailyFootfall": 427.5534247,
+      "areaSqm": 21.6,
+      "areaPyeong": 6.53,
+      "fullTimeStaff": 7,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG GANGNAM",
+      "annualSales": 4232653668,
+      "dailyFootfall": 430.4273973,
+      "areaSqm": 24.5,
+      "areaPyeong": 7.41,
+      "fullTimeStaff": 6,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG CENTUM",
+      "annualSales": 8278068600,
+      "dailyFootfall": 1139.019178,
+      "areaSqm": 74.67,
+      "areaPyeong": 22.59,
+      "fullTimeStaff": 8,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG DAEGU",
+      "annualSales": 4464441226,
+      "dailyFootfall": 952.2465753,
+      "areaSqm": 32,
+      "areaPyeong": 9.68,
+      "fullTimeStaff": 7,
+      "partTimeStaff": 4,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "SSG EUIJEONGBU",
+      "annualSales": 1635895535,
+      "dailyFootfall": 166.7534247,
+      "areaSqm": 42.9,
+      "areaPyeong": 12.98,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG CHEONAN",
+      "annualSales": 1718044920,
+      "dailyFootfall": 201.0410959,
+      "areaSqm": 51.57,
+      "areaPyeong": 15.6,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG SOUTH CITY",
+      "annualSales": 1412655089,
+      "dailyFootfall": 152.7890411,
+      "areaSqm": 37.36,
+      "areaPyeong": 11.3,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "SSG DAEJEON",
+      "annualSales": 3217937990,
+      "dailyFootfall": 439.4794521,
+      "areaSqm": 56.1,
+      "areaPyeong": 16.97,
+      "fullTimeStaff": 5,
+      "partTimeStaff": 6,
+      "partTimeWeeklyHours": 21
+    },
+    {
+      "storeName": "HD YEOUIDO",
+      "annualSales": 10426048422,
+      "dailyFootfall": 1284.117808,
+      "areaSqm": 34,
+      "areaPyeong": 10.28,
+      "fullTimeStaff": 11,
+      "partTimeStaff": 7,
+      "partTimeWeeklyHours": 23
+    },
+    {
+      "storeName": "HD PANGYO",
+      "annualSales": 2897133297,
+      "dailyFootfall": 379.1534247,
+      "areaSqm": 51.4,
+      "areaPyeong": 15.55,
+      "fullTimeStaff": 5,
+      "partTimeStaff": 5,
+      "partTimeWeeklyHours": 22.4
+    },
+    {
+      "storeName": "HD MUYEOK",
+      "annualSales": 3648454140,
+      "dailyFootfall": 265.5287671,
+      "areaSqm": 23.4,
+      "areaPyeong": 7.08,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 4,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "HD APGUJEONG",
+      "annualSales": 1507718405,
+      "dailyFootfall": 91.38082192,
+      "areaSqm": 19.17,
+      "areaPyeong": 5.8,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 4,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "HD MOKDONG",
+      "annualSales": 1492478989,
+      "dailyFootfall": 196.2191781,
+      "areaSqm": 45.6,
+      "areaPyeong": 13.79,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 4,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "HD DAEGU",
+      "annualSales": 1605303814,
+      "dailyFootfall": 215.5917808,
+      "areaSqm": 25.8,
+      "areaPyeong": 7.8,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 4,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "LOTTE MYEONGDONG",
+      "annualSales": 16795439671,
+      "dailyFootfall": 972.4136986,
+      "areaSqm": 57.87,
+      "areaPyeong": 17.51,
+      "fullTimeStaff": 8,
+      "partTimeStaff": 10,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "DFS LOTTE WORLD MALL",
+      "annualSales": 6772201264,
+      "dailyFootfall": 146.0164384,
+      "areaSqm": 66.1,
+      "areaPyeong": 20,
+      "fullTimeStaff": 4,
+      "partTimeStaff": 6,
+      "partTimeWeeklyHours": 21
+    },
+    {
+      "storeName": "DFS LOTTE JEJU",
+      "annualSales": 9792372505,
+      "dailyFootfall": 1178.558904,
+      "areaSqm": 49.5,
+      "areaPyeong": 14.97,
+      "fullTimeStaff": 6,
+      "partTimeStaff": 8,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "DFS SHILLA SEOUL",
+      "annualSales": 13849744875,
+      "dailyFootfall": 324.9123288,
+      "areaSqm": 64,
+      "areaPyeong": 19.36,
+      "fullTimeStaff": 6,
+      "partTimeStaff": 6,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "DFS SHILLA JEJU",
+      "annualSales": 11473499976,
+      "dailyFootfall": 1100.019178,
+      "areaSqm": 33.66,
+      "areaPyeong": 10.18,
+      "fullTimeStaff": 6,
+      "partTimeStaff": 10,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "DFS SSG MYEONGDONG",
+      "annualSales": 18261932547,
+      "dailyFootfall": 658.8630137,
+      "areaSqm": 45.54,
+      "areaPyeong": 13.78,
+      "fullTimeStaff": 7,
+      "partTimeStaff": 10,
+      "partTimeWeeklyHours": 24.5
+    },
+    {
+      "storeName": "INCHEON AIRPORT T1",
+      "annualSales": 26934597681,
+      "dailyFootfall": 3409.347945,
+      "areaSqm": 148.04,
+      "areaPyeong": 44.78,
+      "fullTimeStaff": 14,
+      "partTimeStaff": 18,
+      "partTimeWeeklyHours": 23.33333333
+    },
+    {
+      "storeName": "INCHEON AIRPORT T2",
+      "annualSales": 18962981506,
+      "dailyFootfall": 1577.742466,
+      "areaSqm": 110.35,
+      "areaPyeong": 33.38,
+      "fullTimeStaff": 15,
+      "partTimeStaff": 18,
+      "partTimeWeeklyHours": 23.33333333
+    }
+   ]
