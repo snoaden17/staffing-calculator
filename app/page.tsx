@@ -5,6 +5,8 @@ import referenceStores from "../data/reference-stores.json";
 
 type AreaUnit = "pyeong" | "sqm";
 
+type CurrencyCode = "KRW" | "USD" | "EUR" | "JPY" | "CNY" | "GBP";
+
 type ReferenceStore = {
   storeName: string;
   annualSales: number;
@@ -15,6 +17,15 @@ type ReferenceStore = {
   partTimeStaff: number;
   partTimeWeeklyHours: number;
   targetHeadcount?: number;
+};
+
+const FX_RATES: Record<CurrencyCode, number> = {
+  KRW: 1,
+  USD: 1350,
+  EUR: 1470,
+  JPY: 9.1,
+  CNY: 187,
+  GBP: 1715,
 };
 
 function round1(value: number) {
@@ -35,6 +46,10 @@ function pyeongToSqm(value: number) {
 
 function sqmToPyeong(value: number) {
   return value / 3.305785;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function getReferenceTargetHeadcount(store: ReferenceStore) {
@@ -121,7 +136,8 @@ function getMixDeviation(
 }
 
 export default function Home() {
-  const [annualSales, setAnnualSales] = useState("1,200,000,000");
+  const [currencySearch, setCurrencySearch] = useState("KRW");
+  const [annualSalesInput, setAnnualSalesInput] = useState("1,200,000,000");
   const [dailyFootfall, setDailyFootfall] = useState("180");
 
   const [areaUnit, setAreaUnit] = useState<AreaUnit>("pyeong");
@@ -129,9 +145,7 @@ export default function Home() {
 
   const [dailyOpenHours, setDailyOpenHours] = useState("10");
   const [minimumOperatingStaff, setMinimumOperatingStaff] = useState("2");
-  const [avgTicket, setAvgTicket] = useState("320,000");
 
-  const [customersPerStaffPerDay, setCustomersPerStaffPerDay] = useState("70");
   const [avgCheckoutMinutes, setAvgCheckoutMinutes] = useState("12");
   const [workDaysPerWeek, setWorkDaysPerWeek] = useState("5");
   const [workHoursPerDay, setWorkHoursPerDay] = useState("8");
@@ -139,20 +153,31 @@ export default function Home() {
 
   const [fullTimeWeeklyHours, setFullTimeWeeklyHours] = useState("40");
   const [partTimeWeeklyHours, setPartTimeWeeklyHours] = useState("24");
-  const [areaPerStaff, setAreaPerStaff] = useState("15");
   const [storeMaturity, setStoreMaturity] = useState("100");
 
   const conservativeFactor = 1.02;
 
-  const footfallWeight = 0.835;
-  const areaWeight = 0.969;
-  const openHoursWeight = 0.89;
+  const fixedCustomersPerStaffPerDay = 70;
+  const fixedAreaPerStaff = 15;
+  const fixedAvgTicketKrw = 350000;
 
+  const footfallWeight = 0.9;
+  const areaWeight = 0.5;
+  const openHoursWeight = 0.89;
   const checkoutWeight = 0.05;
   const minimumStaffWeight = 0.02;
-
   const maxMaturityPenalty = 0.5;
-  const defaultOpenHours = 8;
+
+  const selectedCurrency = useMemo(() => {
+    const keyword = currencySearch.toUpperCase().trim();
+    if (keyword in FX_RATES) return keyword as CurrencyCode;
+    return "KRW" as CurrencyCode;
+  }, [currencySearch]);
+
+  const annualSalesKrw = useMemo(() => {
+    const rawValue = parseInputNumber(annualSalesInput);
+    return rawValue * FX_RATES[selectedCurrency];
+  }, [annualSalesInput, selectedCurrency]);
 
   const normalizedArea = useMemo(() => {
     const rawArea = parseInputNumber(areaInput);
@@ -167,22 +192,22 @@ export default function Home() {
   }, [areaInput, areaUnit]);
 
   const result = useMemo(() => {
-    const sales = parseInputNumber(annualSales);
+    const sales = annualSalesKrw;
     const footfall = parseInputNumber(dailyFootfall);
     const areaPyeong = normalizedArea.areaPyeong;
     const openHours = parseInputNumber(dailyOpenHours);
     const minOperatingStaff = parseInputNumber(minimumOperatingStaff);
     const avgCheckout = parseInputNumber(avgCheckoutMinutes);
-    const ticket = parseInputNumber(avgTicket);
 
-    const customersPerStaff = parseInputNumber(customersPerStaffPerDay) || 70;
+    const customersPerStaff = fixedCustomersPerStaffPerDay;
+    const ticket = fixedAvgTicketKrw;
     const workDays = parseInputNumber(workDaysPerWeek) || 5;
     const workHours = parseInputNumber(workHoursPerDay) || 8;
     const breakMinutes = parseInputNumber(breakMinutesPerDay) || 60;
 
     const ftWeeklyHours = parseInputNumber(fullTimeWeeklyHours) || 40;
     const ptWeeklyHours = parseInputNumber(partTimeWeeklyHours) || 24;
-    const areaCoverage = parseInputNumber(areaPerStaff) || 15;
+    const areaCoverage = fixedAreaPerStaff;
     const maturity = Math.min(
       100,
       Math.max(0, parseInputNumber(storeMaturity) || 0)
@@ -192,11 +217,10 @@ export default function Home() {
     const dailyPresenceHours = workHours + breakMinutes / 60;
 
     const salesBaselineFTE = sales / 1000000000;
-
     const footfallBaseFTE =
       customersPerStaff > 0 ? footfall / customersPerStaff : 0;
-
     const areaBaseFTE = areaCoverage > 0 ? areaPyeong / areaCoverage : 0;
+    const openHoursExcessRatio = Math.max(openHours / 8 - 1, 0);
 
     const yearlyTransactions = ticket > 0 ? sales / ticket : 0;
     const yearlyCheckoutHours = (yearlyTransactions * avgCheckout) / 60;
@@ -215,11 +239,6 @@ export default function Home() {
       0
     );
 
-    const openHoursExcessRatio = Math.max(
-      openHours / defaultOpenHours - 1,
-      0
-    );
-
     const footfallAdjustment = footfallExcessFTE * footfallWeight;
     const areaAdjustment = areaExcessFTE * areaWeight;
 
@@ -229,7 +248,6 @@ export default function Home() {
       openHoursWeight;
 
     const checkoutAdjustment = checkoutFTE * checkoutWeight;
-
     const minimumStaffAdjustment =
       Math.max(minOperatingStaff - 2, 0) * minimumStaffWeight;
 
@@ -244,7 +262,6 @@ export default function Home() {
       minimumStaffAdjustment;
 
     const rawFTE = Math.max(rawFTEBeforeMaturity, salesBaselineFTE);
-
     const recommendedHC = ceil1(rawFTE * maturityFactor * conservativeFactor);
 
     const driverMap = [
@@ -261,52 +278,44 @@ export default function Home() {
 
     return {
       recommendedHC: round1(recommendedHC),
-
+      annualSalesKrw: round0(sales),
       areaPyeong: normalizedArea.areaPyeong,
       areaSqm: normalizedArea.areaSqm,
-
       yearlyTransactions: round1(yearlyTransactions),
       yearlyCheckoutHours: round1(yearlyCheckoutHours),
       annualWorkHoursPerPerson: round1(annualWorkHoursPerPerson),
       dailyPresenceHours: round1(dailyPresenceHours),
-
       salesBaselineFTE: round1(salesBaselineFTE),
-
       footfallBaseFTE: round1(footfallBaseFTE),
       areaBaseFTE: round1(areaBaseFTE),
       checkoutFTE: round1(checkoutFTE),
-
       footfallExcessFTE: round1(footfallExcessFTE),
       areaExcessFTE: round1(areaExcessFTE),
-
       footfallAdjustment: round1(footfallAdjustment),
       areaAdjustment: round1(areaAdjustment),
       openHoursAdjustment: round1(openHoursAdjustment),
       checkoutAdjustment: round1(checkoutAdjustment),
       minimumStaffAdjustment: round1(minimumStaffAdjustment),
-
       maturityFactor: round1(maturityFactor),
       rawFTEBeforeMaturity: round1(rawFTEBeforeMaturity),
       rawFTE: round1(rawFTE),
       dominantDriver,
       ftWeeklyHours: round1(ftWeeklyHours),
       ptWeeklyHours: round1(ptWeeklyHours),
+      openHoursExcessRatio: round1(openHoursExcessRatio),
     };
   }, [
-    annualSales,
+    annualSalesKrw,
     dailyFootfall,
     normalizedArea,
     dailyOpenHours,
     minimumOperatingStaff,
     avgCheckoutMinutes,
-    avgTicket,
-    customersPerStaffPerDay,
     workDaysPerWeek,
     workHoursPerDay,
     breakMinutesPerDay,
     fullTimeWeeklyHours,
     partTimeWeeklyHours,
-    areaPerStaff,
     storeMaturity,
   ]);
 
@@ -314,7 +323,7 @@ export default function Home() {
     const stores = referenceStores as ReferenceStore[];
     if (!stores.length) return null;
 
-    const currentSales = parseInputNumber(annualSales);
+    const currentSales = annualSalesKrw;
     const currentFootfall = parseInputNumber(dailyFootfall);
     const currentAreaPyeong = normalizedArea.areaPyeong;
 
@@ -325,9 +334,7 @@ export default function Home() {
 
       const salesScore =
         Math.abs(store.annualSales - currentSales) / 100000000;
-
       const areaScore = Math.abs(referenceAreaPyeong - currentAreaPyeong) / 5;
-
       const footfallScore =
         Math.abs(store.dailyFootfall - currentFootfall) / 10;
 
@@ -359,20 +366,27 @@ export default function Home() {
 
     scored.sort((a, b) => a.score - b.score);
     return scored[0];
-  }, [annualSales, dailyFootfall, normalizedArea.areaPyeong]);
+  }, [annualSalesKrw, dailyFootfall, normalizedArea.areaPyeong]);
 
   const referenceBasedMix = useMemo(() => {
-    if (!closestReference) return null;
-
     const totalTarget = result.recommendedHC;
     const ftHours = parseInputNumber(fullTimeWeeklyHours) || 40;
     const ptHours = parseInputNumber(partTimeWeeklyHours) || 24;
+    const openHours = parseInputNumber(dailyOpenHours) || 8;
 
     const ftUnitFte = 1;
     const ptUnitFte = ftHours > 0 ? ptHours / ftHours : 0;
 
-    const targetFtShare = closestReference.ftShare;
-    const targetPtShare = closestReference.ptShare;
+    const openHoursExcessRatio = Math.max(openHours / 8 - 1, 0);
+    const baseFtShare = 0.72;
+    const openHoursFtSharePenalty = 0.095;
+
+    const targetFtShare = clamp(
+      baseFtShare - openHoursExcessRatio * openHoursFtSharePenalty,
+      0.55,
+      0.8
+    );
+    const targetPtShare = 1 - targetFtShare;
 
     const targetFtFte = totalTarget * targetFtShare;
     const targetPtFte = totalTarget * targetPtShare;
@@ -434,7 +448,7 @@ export default function Home() {
       ftUnitFte: round1(ftUnitFte),
       ptUnitFte: round1(ptUnitFte),
     };
-  }, [closestReference, result.recommendedHC, fullTimeWeeklyHours, partTimeWeeklyHours]);
+  }, [result.recommendedHC, fullTimeWeeklyHours, partTimeWeeklyHours, dailyOpenHours]);
 
   const referenceStoreStaffing = useMemo(() => {
     if (!closestReference) return null;
@@ -477,6 +491,8 @@ export default function Home() {
     "flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3";
   const softValueClass = "text-sm font-medium text-white";
   const softLabelClass = "text-[11px] font-bold tracking-[0.18em] text-white/50";
+  const helperCardClass =
+    "rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/80";
 
   return (
     <main className={shellClass}>
@@ -499,31 +515,52 @@ export default function Home() {
                 </h2>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className={labelClass}>연간 매출</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={annualSales}
-                        onChange={(e) =>
-                          handleFormattedInput(e.target.value, setAnnualSales)
-                        }
-                        className={inputClass}
-                      />
+                  <div>
+                    <label className={labelClass}>환율 검색</label>
+                    <input
+                      type="text"
+                      value={currencySearch}
+                      onChange={(e) => setCurrencySearch(e.target.value.toUpperCase())}
+                      placeholder="KRW / USD / EUR"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>연간 매출</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={annualSalesInput}
+                      onChange={(e) =>
+                        handleFormattedInput(e.target.value, setAnnualSalesInput)
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div className={helperCardClass}>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[11px] font-bold tracking-[0.18em] text-white/50">
+                        KRW CONVERTED SALES
+                      </span>
+                      <span className="font-semibold text-white">
+                        ₩ {round0(result.annualSalesKrw).toLocaleString()}
+                      </span>
                     </div>
-                    <div>
-                      <label className={labelClass}>일 평균 입점객</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={dailyFootfall}
-                        onChange={(e) =>
-                          handleFormattedInput(e.target.value, setDailyFootfall)
-                        }
-                        className={inputClass}
-                      />
-                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>일 평균 입점객</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={dailyFootfall}
+                      onChange={(e) =>
+                        handleFormattedInput(e.target.value, setDailyFootfall)
+                      }
+                      className={inputClass}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
@@ -552,7 +589,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/80">
+                  <div className={helperCardClass}>
                     {result.areaPyeong} 평 / {result.areaSqm} SQM
                   </div>
 
@@ -585,59 +622,34 @@ export default function Home() {
                       />
                     </div>
                   </div>
-
-                  <div>
-                    <label className={labelClass}>평균 객단가</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={avgTicket}
-                      onChange={(e) =>
-                        handleFormattedInput(e.target.value, setAvgTicket)
-                      }
-                      className={inputClass}
-                    />
-                  </div>
                 </div>
               </section>
 
               <section className={sidebarCard}>
-                <h2 className="mb-5 text-sm font-bold tracking-[0.24em] text-white">
-                  인력 운영 기준
-                </h2>
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-bold tracking-[0.24em] text-white">
+                    인력 운영 기준
+                  </h2>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-white/45">
+                    SIMPLIFIED
+                  </span>
+                </div>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className={labelClass}>1인당 하루 응대 가능 고객 수</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={customersPerStaffPerDay}
-                        onChange={(e) =>
-                          handleFormattedInput(
-                            e.target.value,
-                            setCustomersPerStaffPerDay
-                          )
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelClass}>평균 결제 시간(분)</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={avgCheckoutMinutes}
-                        onChange={(e) =>
-                          handleFormattedInput(
-                            e.target.value,
-                            setAvgCheckoutMinutes
-                          )
-                        }
-                        className={inputClass}
-                      />
-                    </div>
+                  <div>
+                    <label className={labelClass}>평균 결제 시간(분)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={avgCheckoutMinutes}
+                      onChange={(e) =>
+                        handleFormattedInput(
+                          e.target.value,
+                          setAvgCheckoutMinutes
+                        )
+                      }
+                      className={inputClass}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -716,19 +728,6 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className={labelClass}>1인당 커버 평수</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={areaPerStaff}
-                      onChange={(e) =>
-                        handleFormattedInput(e.target.value, setAreaPerStaff)
-                      }
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div>
                     <label className={labelClass}>매장 성숙도 (0~100)</label>
                     <input
                       type="text"
@@ -748,7 +747,7 @@ export default function Home() {
           <section className="min-w-0">
             <div className="space-y-4 sm:space-y-6">
               <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="rounded-[32px] border border-white/10 bg-white px-6 py-7 text-black shadow-[0_20px_80px_rgba(255,255,255,0.08)] sm:px-8 sm:py-8">
+                <div className="rounded-[32px] border border-white/10 bg-white px-6 py-7 text-black shadow-[0_20px_80px_rgba(255,255,255,0.08)] sm:px-8 sm:py-8 flex flex-col items-center justify-center text-center">
                   <p className="text-[11px] font-bold tracking-[0.22em] text-black/45">
                     CALCULATED HC
                   </p>
@@ -760,7 +759,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="rounded-[32px] border border-white/12 bg-white/[0.05] px-6 py-7 sm:px-8 sm:py-8">
+                <div className="rounded-[32px] border border-white/12 bg-white/[0.05] px-6 py-7 sm:px-8 sm:py-8 flex flex-col items-center justify-center text-center">
                   <p className="text-[11px] font-bold tracking-[0.22em] text-white/45">
                     CLOSEST REFERENCE STORE
                   </p>
@@ -787,9 +786,19 @@ export default function Home() {
                       </p>
                       <div className="mt-4 space-y-3 text-sm">
                         <div className="flex justify-between gap-4">
-                          <span className="text-black/60">ANNUAL SALES</span>
+                          <span className="text-black/60">ANNUAL SALES INPUT</span>
                           <span className="font-semibold">
-                            {round0(parseInputNumber(annualSales)).toLocaleString()}
+                            {annualSalesInput}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-black/60">APPLIED FX</span>
+                          <span className="font-semibold">{selectedCurrency}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-black/60">ANNUAL SALES KRW</span>
+                          <span className="font-semibold">
+                            {round0(result.annualSalesKrw).toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between gap-4">
@@ -915,12 +924,6 @@ export default function Home() {
                           {referenceBasedMix.targetPtShare}%
                         </span>
                       </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>MIX DEVIATION</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.finalDeviation}
-                        </span>
-                      </div>
                     </div>
                   ) : (
                     <p className="mt-4 text-sm text-white/60">
@@ -1002,91 +1005,6 @@ export default function Home() {
                       REFERENCE STORE DATA IS REQUIRED.
                     </p>
                   )}
-                </div>
-              </div>
-
-              <div className={contentCard}>
-                <h3 className="text-lg font-bold text-white">
-                  CURRENT LOGIC SUMMARY
-                </h3>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>SALES BASELINE FTE</span>
-                    <span className={softValueClass}>{result.salesBaselineFTE}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>FOOTFALL BASE FTE</span>
-                    <span className={softValueClass}>{result.footfallBaseFTE}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>AREA BASE FTE</span>
-                    <span className={softValueClass}>{result.areaBaseFTE}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>CHECKOUT FTE</span>
-                    <span className={softValueClass}>{result.checkoutFTE}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>FOOTFALL ADJUSTMENT</span>
-                    <span className={softValueClass}>{result.footfallAdjustment}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>AREA ADJUSTMENT</span>
-                    <span className={softValueClass}>{result.areaAdjustment}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>OPEN HOURS ADJUSTMENT</span>
-                    <span className={softValueClass}>{result.openHoursAdjustment}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>CHECKOUT ADJUSTMENT</span>
-                    <span className={softValueClass}>{result.checkoutAdjustment}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>MIN STAFF ADJUSTMENT</span>
-                    <span className={softValueClass}>
-                      {result.minimumStaffAdjustment}
-                    </span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>MATURITY FACTOR</span>
-                    <span className={softValueClass}>{result.maturityFactor}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>DOMINANT DRIVER</span>
-                    <span className={softValueClass}>{result.dominantDriver}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>RAW FTE BEFORE MATURITY</span>
-                    <span className={softValueClass}>
-                      {result.rawFTEBeforeMaturity}
-                    </span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>RAW FTE</span>
-                    <span className={softValueClass}>{result.rawFTE}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>ANNUAL WORK HOURS / PERSON</span>
-                    <span className={softValueClass}>
-                      {result.annualWorkHoursPerPerson}
-                    </span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>DAILY PRESENCE HOURS</span>
-                    <span className={softValueClass}>{result.dailyPresenceHours}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>YEARLY TRANSACTIONS</span>
-                    <span className={softValueClass}>{result.yearlyTransactions}</span>
-                  </div>
-                  <div className={metricRowClass}>
-                    <span className={softLabelClass}>YEARLY CHECKOUT HOURS</span>
-                    <span className={softValueClass}>
-                      {result.yearlyCheckoutHours}
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
