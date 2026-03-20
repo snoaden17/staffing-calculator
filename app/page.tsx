@@ -144,14 +144,15 @@ export default function Home() {
 
   const conservativeFactor = 1.02;
 
-  const footfallWeight = 0.45;
-  const areaWeight = 0.45;
-  const openHoursWeight = 0.5;
+  const footfallWeight = 0.835;
+  const areaWeight = 0.969;
+  const openHoursWeight = 0.89;
 
-  const checkoutWeight = 0.2;
-  const minimumStaffWeight = 0.04;
+  const checkoutWeight = 0.05;
+  const minimumStaffWeight = 0.02;
 
   const maxMaturityPenalty = 0.5;
+  const defaultOpenHours = 8;
 
   const normalizedArea = useMemo(() => {
     const rawArea = parseInputNumber(areaInput);
@@ -197,8 +198,6 @@ export default function Home() {
 
     const areaBaseFTE = areaCoverage > 0 ? areaPyeong / areaCoverage : 0;
 
-    const openHoursRatio = workHours > 0 ? openHours / workHours : 1;
-
     const yearlyTransactions = ticket > 0 ? sales / ticket : 0;
     const yearlyCheckoutHours = (yearlyTransactions * avgCheckout) / 60;
     const checkoutFTE =
@@ -207,13 +206,19 @@ export default function Home() {
         : 0;
 
     const footfallExcessFTE = Math.max(
-      footfallBaseFTE - salesBaselineFTE * 0.28,
+      footfallBaseFTE - salesBaselineFTE * 1.0,
       0
     );
 
-    const areaExcessFTE = Math.max(areaBaseFTE - salesBaselineFTE * 0.22, 0);
+    const areaExcessFTE = Math.max(
+      areaBaseFTE - salesBaselineFTE * 0.5,
+      0
+    );
 
-    const openHoursExcessRatio = Math.max(openHoursRatio - 1, 0);
+    const openHoursExcessRatio = Math.max(
+      openHours / defaultOpenHours - 1,
+      0
+    );
 
     const footfallAdjustment = footfallExcessFTE * footfallWeight;
     const areaAdjustment = areaExcessFTE * areaWeight;
@@ -327,7 +332,7 @@ export default function Home() {
         Math.abs(store.dailyFootfall - currentFootfall) / 10;
 
       const score =
-        salesScore * 0.35 + areaScore * 0.45 + footfallScore * 0.2;
+        salesScore * 0.45 + areaScore * 0.45 + footfallScore * 0.1;
 
       const ptFte =
         (Number(store.partTimeStaff) || 0) *
