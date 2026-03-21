@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import referenceStores from "../data/reference-stores.json";
 
 type AreaUnit = "pyeong" | "sqm";
-
 type CurrencyCode = "KRW" | "USD" | "EUR" | "JPY" | "CNY" | "GBP";
 
 type ReferenceStore = {
@@ -87,14 +86,19 @@ function formatNumberInput(value: string) {
   const cleaned = value.replace(/,/g, "").replace(/[^\d.]/g, "");
 
   if (!cleaned) return "";
+  if (cleaned === ".") return "0.";
 
+  const hasTrailingDot = cleaned.endsWith(".");
   const parts = cleaned.split(".");
-  const integerPart = parts[0] || "";
+  const integerPart = parts[0] || "0";
   const decimalPart = parts.slice(1).join("");
 
-  const formattedInteger = integerPart
-    ? Number(integerPart).toLocaleString("en-US")
-    : "0";
+  const formattedInteger =
+    integerPart === "" ? "0" : Number(integerPart).toLocaleString("en-US");
+
+  if (hasTrailingDot) {
+    return `${formattedInteger}.`;
+  }
 
   return decimalPart !== ""
     ? `${formattedInteger}.${decimalPart}`
@@ -107,6 +111,7 @@ function handleFormattedInput(
 ) {
   const cleaned = rawValue.replace(/,/g, "").replace(/[^\d.]/g, "");
   const dotCount = (cleaned.match(/\./g) || []).length;
+
   const normalized =
     dotCount <= 1
       ? cleaned
@@ -164,9 +169,13 @@ export default function Home() {
   const footfallWeight = 0.9;
   const areaWeight = 0.5;
   const openHoursWeight = 0.89;
-  const checkoutWeight = 0.05;
+  const checkoutWeight = 0.1;
   const minimumStaffWeight = 0.02;
   const maxMaturityPenalty = 0.5;
+
+  const lowSalesBlendFloor = 1_000_000_000;
+  const lowSalesBlendCeiling = 4_000_000_000;
+  const maxReferenceBlendWeight = 0.9;
 
   const selectedCurrency = useMemo(() => {
     const keyword = currencySearch.toUpperCase().trim();
@@ -190,6 +199,52 @@ export default function Home() {
       areaSqm: round1(areaSqm),
     };
   }, [areaInput, areaUnit]);
+
+  const closestReference = useMemo(() => {
+    const stores = referenceStores as ReferenceStore[];
+    if (!stores.length) return null;
+
+    const currentSales = annualSalesKrw;
+    const currentFootfall = parseInputNumber(dailyFootfall);
+    const currentAreaPyeong = normalizedArea.areaPyeong;
+
+    const scored = stores.map((store) => {
+      const referenceTarget = getReferenceTargetHeadcount(store);
+      const referenceAreaPyeong = getReferenceAreaPyeong(store);
+      const referenceAreaSqm = getReferenceAreaSqm(store);
+
+      const salesScore =
+        Math.abs(store.annualSales - currentSales) / 100000000;
+      const areaScore = Math.abs(referenceAreaPyeong - currentAreaPyeong) / 5;
+      const footfallScore =
+        Math.abs(store.dailyFootfall - currentFootfall) / 10;
+
+      const score =
+        salesScore * 0.45 + areaScore * 0.45 + footfallScore * 0.1;
+
+      const ptFte =
+        (Number(store.partTimeStaff) || 0) *
+        ((Number(store.partTimeWeeklyHours) || 0) / 40);
+      const ftFte = Number(store.fullTimeStaff) || 0;
+      const totalFte = referenceTarget || 0;
+
+      const ftShare = totalFte > 0 ? ftFte / totalFte : 0;
+      const ptShare = totalFte > 0 ? ptFte / totalFte : 0;
+
+      return {
+        ...store,
+        referenceTarget: round1(referenceTarget),
+        referenceAreaPyeong: round1(referenceAreaPyeong),
+        referenceAreaSqm: round1(referenceAreaSqm),
+        ftShare,
+        ptShare,
+        score: round1(score),
+      };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    return scored[0];
+  }, [annualSalesKrw, dailyFootfall, normalizedArea.areaPyeong]);
 
   const result = useMemo(() => {
     const sales = annualSalesKrw;
@@ -262,47 +317,62 @@ export default function Home() {
       minimumStaffAdjustment;
 
     const rawFTE = Math.max(rawFTEBeforeMaturity, salesBaselineFTE);
-    const recommendedHC = ceil1(rawFTE * maturityFactor * conservativeFactor);
+    const calculatedHC = ceil1(rawFTE * maturityFactor * conservativeFactor);
 
-    const driverMap = [
-      { label: "SALES BASELINE", value: salesBaselineFTE },
-      { label: "FOOTFALL ADJUSTMENT", value: footfallAdjustment },
-      { label: "AREA ADJUSTMENT", value: areaAdjustment },
-      { label: "OPEN HOURS ADJUSTMENT", value: openHoursAdjustment },
-      { label: "CHECKOUT ADJUSTMENT", value: checkoutAdjustment },
-      { label: "MIN STAFF ADJUSTMENT", value: minimumStaffAdjustment },
-    ];
+    const referenceHC = closestReference?.referenceTarget ?? calculatedHC;
 
-    const dominantDriver =
-      [...driverMap].sort((a, b) => b.value - a.value)[0]?.label ?? "-";
+    let referenceBlendWeight = 0;
+    let lowSalesOpsUplift = 0;
+
+    if (sales < 5_000_000_000) {
+      const salesBlendStrength = maxReferenceBlendWeight * (1 - sales / 5_000_000_000);
+      const footfallScore = clamp((footfall - 120) / 180, 0, 1);
+      const minStaffScore = clamp((minOperatingStaff - 2) / 2, 0, 1);
+      const operationalScore = clamp(footfallScore * 0.7 + minStaffScore * 0.3, 0, 1);
+
+      referenceBlendWeight =
+        salesBlendStrength * (0.15 + operationalScore * 0.85);
+
+      lowSalesOpsUplift =
+        clamp((footfall - 180) / 120, 0, 1) * 1.2 +
+        clamp((minOperatingStaff - 2) / 2, 0, 1) * 1.0;
+    } else if (sales <= lowSalesBlendFloor) {
+      referenceBlendWeight = maxReferenceBlendWeight;
+    } else if (sales < lowSalesBlendCeiling) {
+      const progress =
+        (sales - lowSalesBlendFloor) /
+        (lowSalesBlendCeiling - lowSalesBlendFloor);
+      referenceBlendWeight = maxReferenceBlendWeight * (1 - progress);
+    }
+
+    const hcBeforeBlend = calculatedHC + lowSalesOpsUplift;
+
+    const blendedHC =
+      hcBeforeBlend * (1 - referenceBlendWeight) +
+      referenceHC * referenceBlendWeight;
+
+    const recommendedHC = round1(blendedHC);
 
     return {
-      recommendedHC: round1(recommendedHC),
+      recommendedHC,
+      calculatedHC: round1(calculatedHC),
+      referenceHC: round1(referenceHC),
+      referenceBlendWeight: round1(referenceBlendWeight * 100),
       annualSalesKrw: round0(sales),
       areaPyeong: normalizedArea.areaPyeong,
       areaSqm: normalizedArea.areaSqm,
-      yearlyTransactions: round1(yearlyTransactions),
-      yearlyCheckoutHours: round1(yearlyCheckoutHours),
-      annualWorkHoursPerPerson: round1(annualWorkHoursPerPerson),
       dailyPresenceHours: round1(dailyPresenceHours),
       salesBaselineFTE: round1(salesBaselineFTE),
       footfallBaseFTE: round1(footfallBaseFTE),
       areaBaseFTE: round1(areaBaseFTE),
       checkoutFTE: round1(checkoutFTE),
-      footfallExcessFTE: round1(footfallExcessFTE),
-      areaExcessFTE: round1(areaExcessFTE),
       footfallAdjustment: round1(footfallAdjustment),
       areaAdjustment: round1(areaAdjustment),
       openHoursAdjustment: round1(openHoursAdjustment),
       checkoutAdjustment: round1(checkoutAdjustment),
       minimumStaffAdjustment: round1(minimumStaffAdjustment),
-      maturityFactor: round1(maturityFactor),
-      rawFTEBeforeMaturity: round1(rawFTEBeforeMaturity),
-      rawFTE: round1(rawFTE),
-      dominantDriver,
       ftWeeklyHours: round1(ftWeeklyHours),
       ptWeeklyHours: round1(ptWeeklyHours),
-      openHoursExcessRatio: round1(openHoursExcessRatio),
     };
   }, [
     annualSalesKrw,
@@ -317,75 +387,77 @@ export default function Home() {
     fullTimeWeeklyHours,
     partTimeWeeklyHours,
     storeMaturity,
+    closestReference,
   ]);
-
-  const closestReference = useMemo(() => {
-    const stores = referenceStores as ReferenceStore[];
-    if (!stores.length) return null;
-
-    const currentSales = annualSalesKrw;
-    const currentFootfall = parseInputNumber(dailyFootfall);
-    const currentAreaPyeong = normalizedArea.areaPyeong;
-
-    const scored = stores.map((store) => {
-      const referenceTarget = getReferenceTargetHeadcount(store);
-      const referenceAreaPyeong = getReferenceAreaPyeong(store);
-      const referenceAreaSqm = getReferenceAreaSqm(store);
-
-      const salesScore =
-        Math.abs(store.annualSales - currentSales) / 100000000;
-      const areaScore = Math.abs(referenceAreaPyeong - currentAreaPyeong) / 5;
-      const footfallScore =
-        Math.abs(store.dailyFootfall - currentFootfall) / 10;
-
-      const score =
-        salesScore * 0.45 + areaScore * 0.45 + footfallScore * 0.1;
-
-      const ptFte =
-        (Number(store.partTimeStaff) || 0) *
-        ((Number(store.partTimeWeeklyHours) || 0) / 40);
-      const ftFte = Number(store.fullTimeStaff) || 0;
-      const totalFte = referenceTarget || 0;
-
-      const ftShare = totalFte > 0 ? ftFte / totalFte : 0;
-      const ptShare = totalFte > 0 ? ptFte / totalFte : 0;
-
-      return {
-        ...store,
-        referenceTarget: round1(referenceTarget),
-        referenceAreaPyeong: round1(referenceAreaPyeong),
-        referenceAreaSqm: round1(referenceAreaSqm),
-        ftShare,
-        ptShare,
-        salesScore: round1(salesScore),
-        areaScore: round1(areaScore),
-        footfallScore: round1(footfallScore),
-        score: round1(score),
-      };
-    });
-
-    scored.sort((a, b) => a.score - b.score);
-    return scored[0];
-  }, [annualSalesKrw, dailyFootfall, normalizedArea.areaPyeong]);
 
   const referenceBasedMix = useMemo(() => {
     const totalTarget = result.recommendedHC;
+    const sales = annualSalesKrw;
+    const footfall = parseInputNumber(dailyFootfall);
+    const openHours = parseInputNumber(dailyOpenHours) || 8;
+    const minOperatingStaff = parseInputNumber(minimumOperatingStaff) || 2;
     const ftHours = parseInputNumber(fullTimeWeeklyHours) || 40;
     const ptHours = parseInputNumber(partTimeWeeklyHours) || 24;
-    const openHours = parseInputNumber(dailyOpenHours) || 8;
 
     const ftUnitFte = 1;
     const ptUnitFte = ftHours > 0 ? ptHours / ftHours : 0;
 
     const openHoursExcessRatio = Math.max(openHours / 8 - 1, 0);
-    const baseFtShare = 0.72;
-    const openHoursFtSharePenalty = 0.095;
 
-    const targetFtShare = clamp(
-      baseFtShare - openHoursExcessRatio * openHoursFtSharePenalty,
+    const highSalesBaseFtShare = 0.72;
+    const highSalesOpenHoursPenalty = 0.095;
+    const highSalesFtShare = clamp(
+      highSalesBaseFtShare - openHoursExcessRatio * highSalesOpenHoursPenalty,
       0.55,
       0.8
     );
+
+    const referenceFtShare =
+      closestReference && typeof closestReference.ftShare === "number"
+        ? closestReference.ftShare
+        : highSalesFtShare;
+
+    let targetFtShare = highSalesFtShare;
+    let referenceMixBlendWeight = 0;
+
+    if (sales < 5_000_000_000) {
+      const baseLowSalesFtShare = 0.72;
+
+      const footfallDelta = (footfall - 180) / 180;
+      const footfallAdjustment = clamp(footfallDelta * -0.1, -0.12, 0.08);
+
+      const openHoursAdjustment = clamp(openHoursExcessRatio * -0.015, -0.05, 0);
+
+      let minStaffAdjustment = 0;
+      if (minOperatingStaff <= 2) {
+        minStaffAdjustment = 0.04;
+      } else if (minOperatingStaff === 3) {
+        minStaffAdjustment = 0;
+      } else if (minOperatingStaff === 4) {
+        minStaffAdjustment = -0.04;
+      } else if (minOperatingStaff >= 5) {
+        minStaffAdjustment = -0.06;
+      }
+
+      const operationFtShare = clamp(
+        baseLowSalesFtShare +
+          footfallAdjustment +
+          openHoursAdjustment +
+          minStaffAdjustment,
+        0.5,
+        0.8
+      );
+
+      referenceMixBlendWeight = 0.18 * (1 - sales / 5_000_000_000);
+
+      targetFtShare = clamp(
+        operationFtShare * (1 - referenceMixBlendWeight) +
+          referenceFtShare * referenceMixBlendWeight,
+        0.5,
+        0.8
+      );
+    }
+
     const targetPtShare = 1 - targetFtShare;
 
     const targetFtFte = totalTarget * targetFtShare;
@@ -429,26 +501,26 @@ export default function Home() {
       safety += 1;
     }
 
-    const finalDeviation = getMixDeviation(
-      suggestedFT,
-      suggestedPT,
-      ftUnitFte,
-      ptUnitFte,
-      targetFtShare,
-      targetPtShare
-    );
-
     return {
       suggestedFT,
       suggestedPT,
       realizedFte: round1(realizedFte),
       targetFtShare: round1(targetFtShare * 100),
       targetPtShare: round1(targetPtShare * 100),
-      finalDeviation: round1(finalDeviation),
       ftUnitFte: round1(ftUnitFte),
       ptUnitFte: round1(ptUnitFte),
+      referenceMixBlendWeight: round1(referenceMixBlendWeight * 100),
     };
-  }, [result.recommendedHC, fullTimeWeeklyHours, partTimeWeeklyHours, dailyOpenHours]);
+  }, [
+    result.recommendedHC,
+    annualSalesKrw,
+    dailyFootfall,
+    dailyOpenHours,
+    minimumOperatingStaff,
+    fullTimeWeeklyHours,
+    partTimeWeeklyHours,
+    closestReference,
+  ]);
 
   const referenceStoreStaffing = useMemo(() => {
     if (!closestReference) return null;
@@ -466,8 +538,6 @@ export default function Home() {
     return {
       ftCount,
       ptCount,
-      ftUnitFte: round1(ftUnitFte),
-      ptUnitFte: round1(ptUnitFte),
       ftFte: round1(ftFte),
       ptFte: round1(ptFte),
       totalFte: round1(totalFte),
@@ -554,7 +624,7 @@ export default function Home() {
                     <label className={labelClass}>일 평균 입점객</label>
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={dailyFootfall}
                       onChange={(e) =>
                         handleFormattedInput(e.target.value, setDailyFootfall)
@@ -610,7 +680,7 @@ export default function Home() {
                       <label className={labelClass}>최소 운영 인원</label>
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="decimal"
                         value={minimumOperatingStaff}
                         onChange={(e) =>
                           handleFormattedInput(
@@ -657,7 +727,7 @@ export default function Home() {
                       <label className={labelClass}>주당 근무일수</label>
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="decimal"
                         value={workDaysPerWeek}
                         onChange={(e) =>
                           handleFormattedInput(e.target.value, setWorkDaysPerWeek)
@@ -681,7 +751,7 @@ export default function Home() {
                       <label className={labelClass}>일 휴게시간(분)</label>
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="decimal"
                         value={breakMinutesPerDay}
                         onChange={(e) =>
                           handleFormattedInput(
@@ -731,7 +801,7 @@ export default function Home() {
                     <label className={labelClass}>매장 성숙도 (0~100)</label>
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={storeMaturity}
                       onChange={(e) =>
                         handleFormattedInput(e.target.value, setStoreMaturity)
@@ -787,9 +857,7 @@ export default function Home() {
                       <div className="mt-4 space-y-3 text-sm">
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">ANNUAL SALES INPUT</span>
-                          <span className="font-semibold">
-                            {annualSalesInput}
-                          </span>
+                          <span className="font-semibold">{annualSalesInput}</span>
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">APPLIED FX</span>
@@ -804,7 +872,7 @@ export default function Home() {
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">DAILY FOOTFALL</span>
                           <span className="font-semibold">
-                            {round0(parseInputNumber(dailyFootfall)).toLocaleString()}
+                            {parseInputNumber(dailyFootfall).toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between gap-4">
@@ -815,7 +883,21 @@ export default function Home() {
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">CALCULATED HC</span>
-                          <span className="font-semibold">{result.recommendedHC}</span>
+                          <span className="font-semibold">
+                            {result.calculatedHC}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-black/60">BLENDED HC</span>
+                          <span className="font-semibold">
+                            {result.recommendedHC}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-black/60">REFERENCE BLEND</span>
+                          <span className="font-semibold">
+                            {result.referenceBlendWeight}%
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -871,65 +953,59 @@ export default function Home() {
                   <h3 className="text-lg font-bold text-white">
                     REFERENCE-BASED FT / PT SUGGESTION
                   </h3>
-                  {referenceBasedMix ? (
-                    <div className="mt-5 space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-[22px] border border-white/10 bg-white px-5 py-5 text-black">
-                          <p className="text-[11px] font-bold tracking-[0.18em] text-black/45">
-                            SUGGESTED FT
-                          </p>
-                          <p className="mt-3 text-3xl font-bold">
-                            {referenceBasedMix.suggestedFT}
-                          </p>
-                          <p className="mt-1 text-sm text-black/55">명</p>
-                        </div>
-                        <div className="rounded-[22px] border border-white/10 bg-white/[0.05] px-5 py-5 text-white">
-                          <p className="text-[11px] font-bold tracking-[0.18em] text-white/45">
-                            SUGGESTED PT
-                          </p>
-                          <p className="mt-3 text-3xl font-bold">
-                            {referenceBasedMix.suggestedPT}
-                          </p>
-                          <p className="mt-1 text-sm text-white/55">명</p>
-                        </div>
+                  <div className="mt-5 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-[22px] border border-white/10 bg-white px-5 py-5 text-black">
+                        <p className="text-[11px] font-bold tracking-[0.18em] text-black/45">
+                          SUGGESTED FT
+                        </p>
+                        <p className="mt-3 text-3xl font-bold">
+                          {referenceBasedMix.suggestedFT}
+                        </p>
+                        <p className="mt-1 text-sm text-black/55">명</p>
                       </div>
-
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>REALIZED FTE</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.realizedFte}
-                        </span>
-                      </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>FT UNIT FTE</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.ftUnitFte}
-                        </span>
-                      </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>PT UNIT FTE</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.ptUnitFte}
-                        </span>
-                      </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>TARGET FT SHARE</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.targetFtShare}%
-                        </span>
-                      </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>TARGET PT SHARE</span>
-                        <span className={softValueClass}>
-                          {referenceBasedMix.targetPtShare}%
-                        </span>
+                      <div className="rounded-[22px] border border-white/10 bg-white/[0.05] px-5 py-5 text-white">
+                        <p className="text-[11px] font-bold tracking-[0.18em] text-white/45">
+                          SUGGESTED PT
+                        </p>
+                        <p className="mt-3 text-3xl font-bold">
+                          {referenceBasedMix.suggestedPT}
+                        </p>
+                        <p className="mt-1 text-sm text-white/55">명</p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="mt-4 text-sm text-white/60">
-                      REFERENCE DATA IS REQUIRED TO SUGGEST FT/PT MIX.
-                    </p>
-                  )}
+
+                    <div className={metricRowClass}>
+                      <span className={softLabelClass}>REALIZED FTE</span>
+                      <span className={softValueClass}>
+                        {referenceBasedMix.realizedFte}
+                      </span>
+                    </div>
+                    <div className={metricRowClass}>
+                      <span className={softLabelClass}>FT UNIT FTE</span>
+                      <span className={softValueClass}>
+                        {referenceBasedMix.ftUnitFte}
+                      </span>
+                    </div>
+                    <div className={metricRowClass}>
+                      <span className={softLabelClass}>PT UNIT FTE</span>
+                      <span className={softValueClass}>
+                        {referenceBasedMix.ptUnitFte}
+                      </span>
+                    </div>
+                    <div className={metricRowClass}>
+                      <span className={softLabelClass}>TARGET FT SHARE</span>
+                      <span className={softValueClass}>
+                        {referenceBasedMix.targetFtShare}%
+                      </span>
+                    </div>
+                    <div className={metricRowClass}>
+                      <span className={softLabelClass}>TARGET PT SHARE</span>
+                      <span className={softValueClass}>
+                        {referenceBasedMix.targetPtShare}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className={contentCard}>
@@ -970,16 +1046,6 @@ export default function Home() {
                       </div>
 
                       <div className={metricRowClass}>
-                        <span className={softLabelClass}>FT HOURS BASIS</span>
-                        <span className={softValueClass}>40H FIXED</span>
-                      </div>
-                      <div className={metricRowClass}>
-                        <span className={softLabelClass}>PT WEEKLY HOURS</span>
-                        <span className={softValueClass}>
-                          {referenceStoreStaffing.ptWeeklyHours}H
-                        </span>
-                      </div>
-                      <div className={metricRowClass}>
                         <span className={softLabelClass}>FT FTE</span>
                         <span className={softValueClass}>
                           {referenceStoreStaffing.ftFte}
@@ -989,6 +1055,12 @@ export default function Home() {
                         <span className={softLabelClass}>PT FTE</span>
                         <span className={softValueClass}>
                           {referenceStoreStaffing.ptFte}
+                        </span>
+                      </div>
+                      <div className={metricRowClass}>
+                        <span className={softLabelClass}>PT WEEKLY HOURS</span>
+                        <span className={softValueClass}>
+                          {referenceStoreStaffing.ptWeeklyHours}H
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white px-4 py-4 text-black">
