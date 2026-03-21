@@ -856,15 +856,11 @@ export default function Home() {
                       </p>
                       <div className="mt-4 space-y-3 text-sm">
                         <div className="flex justify-between gap-4">
-                          <span className="text-black/60">ANNUAL SALES INPUT</span>
-                          <span className="font-semibold">{annualSalesInput}</span>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span className="text-black/60">APPLIED FX</span>
+                          <span className="text-black/60">APPLIED CURRENCY</span>
                           <span className="font-semibold">{selectedCurrency}</span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-black/60">ANNUAL SALES KRW</span>
+                          <span className="text-black/60">ANNUAL SALES</span>
                           <span className="font-semibold">
                             {round0(result.annualSalesKrw).toLocaleString()}
                           </span>
@@ -887,19 +883,7 @@ export default function Home() {
                             {result.calculatedHC}
                           </span>
                         </div>
-                        <div className="flex justify-between gap-4">
-                          <span className="text-black/60">BLENDED HC</span>
-                          <span className="font-semibold">
-                            {result.recommendedHC}
-                          </span>
                         </div>
-                        <div className="flex justify-between gap-4">
-                          <span className="text-black/60">REFERENCE BLEND</span>
-                          <span className="font-semibold">
-                            {result.referenceBlendWeight}%
-                          </span>
-                        </div>
-                      </div>
                     </div>
 
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-white sm:p-6">
