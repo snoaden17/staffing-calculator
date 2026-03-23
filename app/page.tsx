@@ -6,6 +6,12 @@ import referenceStores from "../data/reference-stores.json";
 type AreaUnit = "pyeong" | "sqm";
 type CurrencyCode = "KRW" | "USD" | "EUR" | "JPY" | "CNY" | "GBP";
 
+type CurrencyOption = {
+  code: CurrencyCode;
+  label: string;
+  symbol: string;
+};
+
 type ReferenceStore = {
   storeName: string;
   annualSales: number;
@@ -26,6 +32,15 @@ const FX_RATES: Record<CurrencyCode, number> = {
   CNY: 187,
   GBP: 1715,
 };
+
+const CURRENCY_OPTIONS: CurrencyOption[] = [
+  { code: "KRW", label: "KRW / KOREAN WON", symbol: "₩" },
+  { code: "USD", label: "USD / US DOLLAR", symbol: "$" },
+  { code: "EUR", label: "EUR / EURO", symbol: "€" },
+  { code: "JPY", label: "JPY / JAPANESE YEN", symbol: "¥" },
+  { code: "CNY", label: "CNY / CHINESE YUAN", symbol: "¥" },
+  { code: "GBP", label: "GBP / BRITISH POUND", symbol: "£" },
+];
 
 function round1(value: number) {
   return Math.round(value * 10) / 10;
@@ -142,6 +157,7 @@ function getMixDeviation(
 
 export default function Home() {
   const [currencySearch, setCurrencySearch] = useState("KRW");
+  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
   const [annualSalesInput, setAnnualSalesInput] = useState("1,200,000,000");
   const [dailyFootfall, setDailyFootfall] = useState("180");
 
@@ -182,6 +198,22 @@ export default function Home() {
     if (keyword in FX_RATES) return keyword as CurrencyCode;
     return "KRW" as CurrencyCode;
   }, [currencySearch]);
+
+  const filteredCurrencyOptions = useMemo(() => {
+    const keyword = currencySearch.trim().toUpperCase();
+
+    if (!keyword) return CURRENCY_OPTIONS;
+
+    const filtered = CURRENCY_OPTIONS.filter((option) =>
+      `${option.code} ${option.label}`.toUpperCase().includes(keyword)
+    );
+
+    return filtered.length ? filtered : CURRENCY_OPTIONS;
+  }, [currencySearch]);
+
+  const selectedCurrencyOption =
+    CURRENCY_OPTIONS.find((option) => option.code === selectedCurrency) ??
+    CURRENCY_OPTIONS[0];
 
   const annualSalesKrw = useMemo(() => {
     const rawValue = parseInputNumber(annualSalesInput);
@@ -585,15 +617,39 @@ export default function Home() {
                 </h2>
 
                 <div className="space-y-4">
-                  <div>
+                  <div className="relative">
                     <label className={labelClass}>환율 검색</label>
                     <input
                       type="text"
                       value={currencySearch}
-                      onChange={(e) => setCurrencySearch(e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        setCurrencySearch(e.target.value.toUpperCase());
+                        setIsCurrencyDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsCurrencyDropdownOpen(true)}
                       placeholder="KRW / USD / EUR"
                       className={inputClass}
                     />
+                    {isCurrencyDropdownOpen ? (
+                      <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-2xl border border-white/12 bg-black/95 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                        <div className="max-h-56 overflow-y-auto py-2">
+                          {filteredCurrencyOptions.map((option) => (
+                            <button
+                              key={option.code}
+                              type="button"
+                              onClick={() => {
+                                setCurrencySearch(option.code);
+                                setIsCurrencyDropdownOpen(false);
+                              }}
+                              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-white transition hover:bg-white/[0.08]"
+                            >
+                              <span className="font-semibold">{option.label}</span>
+                              <span className="text-white/55">{option.symbol}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div>
@@ -602,6 +658,7 @@ export default function Home() {
                       type="text"
                       inputMode="decimal"
                       value={annualSalesInput}
+                      onFocus={() => setIsCurrencyDropdownOpen(false)}
                       onChange={(e) =>
                         handleFormattedInput(e.target.value, setAnnualSalesInput)
                       }
@@ -615,7 +672,8 @@ export default function Home() {
                         KRW CONVERTED SALES
                       </span>
                       <span className="font-semibold text-white">
-                        ₩ {round0(result.annualSalesKrw).toLocaleString()}
+                        {selectedCurrencyOption.symbol}
+                        {formatNumberInput(annualSalesInput || "0")}
                       </span>
                     </div>
                   </div>
@@ -857,7 +915,9 @@ export default function Home() {
                       <div className="mt-4 space-y-3 text-sm">
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">APPLIED CURRENCY</span>
-                          <span className="font-semibold">{selectedCurrency}</span>
+                          <span className="font-semibold">
+                            {selectedCurrencyOption.label}
+                          </span>
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-black/60">ANNUAL SALES</span>
